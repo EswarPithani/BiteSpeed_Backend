@@ -1,38 +1,79 @@
 # BiteSpeed Backend Task — Identity Reconciliation
 
 This repository contains the backend implementation for the **BiteSpeed Identity Reconciliation Task**.  
-The service exposes a single POST API `/identify` that links customer identities based on email and phone numbers by maintaining primary/secondary relationships across multiple contact entries.
+The service exposes a single POST API `/identify` that consolidates and reconciles customer identities using **primary/secondary contact linking**, ensuring all related contact entries are unified under a single identity.
 
 ---
 
-## Tech Stack
+#  Features Implemented (As per BiteSpeed Task Document)
 
-- **Node.js**
-- **Express.js**
-- **PostgreSQL (NeonDB)**
-- **Prisma ORM**
-- **Render (Deployment)**
+###  Identity Reconciliation Based on Email & Phone  
+- Matches customers by **email**, **phone**, or both.  
+- Links multiple contact entries belonging to the same person.
+
+###  Primary & Secondary Contact Logic  
+- Oldest contact becomes **primary**.  
+- Additional matching contacts become **secondary**.  
+- New unique information creates new secondary entries.
+
+###  Automatic Merging of Multiple Identities  
+- If separate identity clusters are discovered (email match in one, phone match in another),  
+  they are **merged into a single primary identity**.
+  
+###  Full Deduplication  
+- Returns unique lists of:
+  - Emails  
+  - Phone numbers  
+  - Secondary contact IDs  
+
+###  Stable, Repeatable Responses  
+- Multiple calls with the same inputs will always return the same consolidated identity state.
+
+###  Database Normalization with Prisma  
+- Proper relational model using `linkedId` and `linkPrecedence`.  
+- Automatic timestamping (`createdAt`, `updatedAt`).  
+
+###  Clean Commit History  
+- Project initialized, Prisma models, service logic, controllers, routes, and deployment  
+  all committed with **clear descriptive commits**, as required.
+
+###  Fully Deployed Public API  
+- Backend hosted on **Render** with a live `/identify` endpoint.  
 
 ---
 
-## Problem Summary
+# Tech Stack
 
-Customers may make purchases using different combinations of:
-
-- Email addresses
-- Phone numbers
-
-The goal of this service is to identify whether multiple such contacts belong to the same individual.  
-
-To do this, we maintain a **Contact** table where:
-
-- The **oldest record** among related contacts becomes the **primary** contact.
-- Any additional records linked by matching email or phone become **secondary** contacts.
-- All contacts linked to a single user are reconciled and returned as a consolidated identity response.
+- **Node.js** – Server runtime  
+- **Express.js** – API framework  
+- **PostgreSQL (NeonDB)** – Cloud database  
+- **Prisma ORM** – Database schema, queries, migrations  
+- **Render** – Deployment
 
 ---
 
-## Database Schema (Prisma)
+# Problem Summary (As per the BiteSpeed Document)
+
+Customers may place orders using different:
+
+- Emails  
+- Phone numbers  
+
+The goal is to determine whether these records belong to the **same person**.
+
+### Rules from the problem:
+
+1. **If no matching contact exists → Create a new Primary contact.**  
+2. **If matching contact(s) exist →**  
+   - Find the **oldest** contact → mark as `primary`.  
+   - Any additional contacts become `secondary`.  
+3. If new input introduces previously unseen data (new email/phone),  
+   a **new secondary** contact is created and linked to the primary.  
+4. Identity graph grows over time, and responses always reflect the full linked network.  
+
+---
+
+# Database Schema (Prisma)
 
 ```prisma
 model Contact {
@@ -40,16 +81,14 @@ model Contact {
   phoneNumber    String?
   email          String?
   linkedId       Int?
-  linkPrecedence String    @default("primary")  // "primary" or "secondary"
+  linkPrecedence String    @default("primary")  // "primary" | "secondary"
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
-
   primaryContact     Contact?     @relation("PrimarySecondary", fields: [linkedId], references: [id])
   secondaryContacts  Contact[]    @relation("PrimarySecondary")
 }
-
 
 ## Project Structure
 
