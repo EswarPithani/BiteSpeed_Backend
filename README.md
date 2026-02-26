@@ -1,78 +1,116 @@
 # BiteSpeed Backend Task — Identity Reconciliation
 
-This repository contains the backend implementation for the BiteSpeed Identity Reconciliation task.  
-The service exposes a single POST API `/identify` that links customer identities based on email and phone numbers by maintaining primary/secondary relationships.
+This repository contains the backend implementation for the **BiteSpeed Identity Reconciliation Task**.  
+The service exposes a single POST API `/identify` that links customer identities based on email and phone numbers by maintaining primary/secondary relationships across multiple contact entries.
 
 ---
 
 ## Tech Stack
 
-- **Node.js + Express**
-- **PostgreSQL (Neon DB)**
+- **Node.js**
+- **Express.js**
+- **PostgreSQL (NeonDB)**
 - **Prisma ORM**
-- **Render (for deployment)**
+- **Render (Deployment)**
 
 ---
+
+## Problem Summary
+
+Customers may make purchases using different combinations of:
+
+- Email addresses
+- Phone numbers
+
+The goal of this service is to identify whether multiple such contacts belong to the same individual.  
+
+To do this, we maintain a **Contact** table where:
+
+- The **oldest record** among related contacts becomes the **primary** contact.
+- Any additional records linked by matching email or phone become **secondary** contacts.
+- All contacts linked to a single user are reconciled and returned as a consolidated identity response.
+
+---
+
+## Database Schema (Prisma)
+
+```prisma
+model Contact {
+  id             Int       @id @default(autoincrement())
+  phoneNumber    String?
+  email          String?
+  linkedId       Int?
+  linkPrecedence String    @default("primary")  // "primary" or "secondary"
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+
+  primaryContact     Contact?     @relation("PrimarySecondary", fields: [linkedId], references: [id])
+  secondaryContacts  Contact[]    @relation("PrimarySecondary")
+}
+
 
 ## Project Structure
-src/
-├── app.js
-├── server.js
-├── db.js
-├── routes/
-│ └── identify.route.js
-├── controllers/
-│ └── identify.controller.js
-└── services/
-└── identify.service.js
 
-prisma/
-├── schema.prisma
-└── migrations/
+bitespeed-backend/
+├── prisma/
+│ ├── schema.prisma
+│ └── migrations/
+├── src/
+│ ├── routes/
+│ │ └── identify.route.js
+│ ├── controllers/
+│ │ └── identify.controller.js
+│ ├── services/
+│ │ └── identify.service.js
+│ ├── db.js
+│ ├── app.js
+│ └── server.js
+├── package.json
+├── package-lock.json
+├── .gitignore
+├── .env 
+└── README.md
 
 
----
+## Request Body
 
-## Problem Statement (Summary)
-
-Customers may use different emails or phone numbers across purchases.  
-The goal is to identify if multiple contacts belong to the same person.
-
-A "Contact" record is stored as:
-
-- **Primary contact** → the oldest entry
-- **Secondary contact** → linked to primary via `linkedId`
-
-A customer is considered the same if:
-
-- email matches OR  
-- phoneNumber matches
-
----
-
-## API Endpoint
-
-### **POST /identify**
-
-#### Request Body:
-
-```json
 {
   "email": "abc@example.com",
   "phoneNumber": "1234567890"
 }
 
+## Response Body
 
-### **Core Logic Implemented**
+{
+  "contact": {
+    "primaryContactId": 1,
+    "emails": ["abc@example.com", "another@example.com"],
+    "phoneNumbers": ["1234567890", "9876543210"],
+    "secondaryContactIds": [5, 8]
+  }
+}
 
-Search database for any contact matching email/phone
 
-If none found → create new primary
+1. Install dependencies
+npm install
 
-If found →
+2. Run migrations
+npx prisma migrate dev
 
-Identify oldest record → primary
+3. Start server
+npm run dev
 
-Add new secondary if new info exists
+Server runs on:
+http://localhost:3000
 
-Merge all linked contacts and return consolidated identity
+Test API:
+POST → http://localhost:3000/identify
+
+Deployment (Render)
+
+This backend is deployed on Render.
+
+Live API Endpoint:
+<YOUR_RENDER_BACKEND_URL>/identify
