@@ -152,4 +152,4 @@ Deployment (Render)
 This backend is deployed on Render.
 
 Live API Endpoint:
-<YOUR_RENDER_BACKEND_URL>/identify
+https://bitespeed-backend-vng5.onrender.com/
